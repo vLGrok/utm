@@ -7,7 +7,7 @@ SNAPSHOTS_DIR=$BASE_DIR/Snapshots
 # Create Snapshots directory if it doesn't exist
 mkdir -p $SNAPSHOTS_DIR
 
-snapshot() {
+create() {
     VM_NAME=$1
     TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
     SNAPSHOT_NAME="${VM_NAME}_${TIMESTAMP}.tar.gz"
@@ -23,7 +23,35 @@ snapshot() {
 }
 
 revert() {
-    echo "Revert functionality is not yet implemented."
+    VM_NAME=$1
+    SNAPSHOT_FILE=$2
+
+    if [ -z "$VM_NAME" ] || [ -z "$SNAPSHOT_FILE" ]; then
+        echo "Usage: $0 revert <VM_NAME> <SNAPSHOT_FILE>"
+        return
+    fi
+
+    # Check if snapshot file exists
+    if [ -f "$SNAPSHOTS_DIR/$SNAPSHOT_FILE" ]; then
+        # Remove current VM directory
+        rm -rf $BASE_DIR/$VM_NAME.utm
+
+        # Restore snapshot
+        tar -xzvf $SNAPSHOTS_DIR/$SNAPSHOT_FILE -C $BASE_DIR
+        echo "Reverted $VM_NAME to snapshot $SNAPSHOT_FILE"
+    else
+        echo "Snapshot file $SNAPSHOT_FILE does not exist."
+    fi
+}
+
+ls_snapshots() {
+    VM_NAME=$1
+
+    if [ -z "$VM_NAME" ]; then
+        ls -l --color=auto $SNAPSHOTS_DIR
+    else
+        ls -l --color=auto $SNAPSHOTS_DIR | grep "$VM_NAME"
+    fi
 }
 
 # Main script
@@ -34,14 +62,24 @@ case $COMMAND in
         if [ -z "$2" ]; then
             echo "Usage: $0 create <VM_NAME>"
         else
-            snapshot $2
+            create $2
         fi
         ;;
     revert)
-        revert
+        if [ -z "$2" ] || [ -z "$3" ]; then
+            echo "Usage: $0 revert <VM_NAME> <SNAPSHOT_FILE>"
+        else
+            revert $2 $3
+        fi
+        ;;
+    ls)
+        if [ -z "$2" ]; then
+            ls_snapshots
+        else
+            ls_snapshots $2
+        fi
         ;;
     *)
-        echo "Usage: $0 {create|revert}"
+        echo "Usage: $0 {create|revert|ls}"
         ;;
 esac
-
