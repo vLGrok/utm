@@ -50,9 +50,9 @@ ls_snapshots() {
     VM_NAME=$1
 
     if [ -z "$VM_NAME" ]; then
-        ls $SNAPSHOTS_DIR
+        ls -l $SNAPSHOTS_DIR
     else
-        ls $SNAPSHOTS_DIR | grep "$VM_NAME"
+        ls -l $SNAPSHOTS_DIR | grep "$VM_NAME"
     fi
 }
 
