@@ -12,10 +12,11 @@ create() {
     TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
     SNAPSHOT_NAME="${VM_NAME}_${TIMESTAMP}.tar.gz"
     
-    # Check if VM directory exists
-    if [ -d "$BASE_DIR/$VM_NAME.utm" ]; then
-        # Create snapshot
-        tar -czvf $SNAPSHOTS_DIR/$SNAPSHOT_NAME -C $BASE_DIR $VM_NAME.utm
+    VM_PATH=$(find $BASE_DIR -type d -name "$VM_NAME.utm" -print -quit)
+    
+    if [ -d "$VM_PATH" ]; then
+        VM_DIR_NAME=$(basename "$VM_PATH")
+        tar -czvf $SNAPSHOTS_DIR/$SNAPSHOT_NAME -C $BASE_DIR $VM_DIR_NAME
         echo "Snapshot created: $SNAPSHOT_NAME"
     else
         echo "VM directory $VM_NAME.utm does not exist."
@@ -31,13 +32,14 @@ revert() {
         return
     fi
 
-    # Check if snapshot file exists
-    if [ -f "$SNAPSHOTS_DIR/$SNAPSHOT_FILE" ]; then
-        # Remove current VM directory
-        rm -rf $BASE_DIR/$VM_NAME.utm
+    SNAPSHOT_PATH=$SNAPSHOTS_DIR/$SNAPSHOT_FILE
+    VM_PATH=$(find $BASE_DIR -type d -name "$VM_NAME.utm" -print -quit)
 
-        # Restore snapshot
-        tar -xzvf $SNAPSHOTS_DIR/$SNAPSHOT_FILE -C $BASE_DIR
+    if [ -f "$SNAPSHOT_PATH" ]; then
+        if [ -d "$VM_PATH" ]; then
+            rm -rf "$VM_PATH"
+        fi
+        tar -xzvf $SNAPSHOT_PATH -C $BASE_DIR
         echo "Reverted $VM_NAME to snapshot $SNAPSHOT_FILE"
     else
         echo "Snapshot file $SNAPSHOT_FILE does not exist."
@@ -48,9 +50,46 @@ ls_snapshots() {
     VM_NAME=$1
 
     if [ -z "$VM_NAME" ]; then
-        ls -l --color=auto $SNAPSHOTS_DIR
+        ls $SNAPSHOTS_DIR
     else
-        ls -l --color=auto $SNAPSHOTS_DIR | grep "$VM_NAME"
+        ls $SNAPSHOTS_DIR | grep "$VM_NAME"
+    fi
+}
+
+prune() {
+    VM_NAME=$1
+    RETENTION=$2
+
+    if [ -z "$VM_NAME" ] || [ -z "$RETENTION" ]; then
+        echo "Usage: $0 prune <VM_NAME> <RETENTION>"
+        return
+    fi
+
+    SNAPSHOTS=$(ls $SNAPSHOTS_DIR | grep "$VM_NAME" | sort -r)
+    COUNTER=0
+
+    for SNAPSHOT in $SNAPSHOTS; do
+        COUNTER=$((COUNTER + 1))
+        if [ $COUNTER -gt $RETENTION ]; then
+            delete_snapshot $SNAPSHOT
+        fi
+    done
+}
+
+delete_snapshot() {
+    SNAPSHOT_FILE=$1
+
+    if [ -z "$SNAPSHOT_FILE" ]; then
+        echo "Usage: $0 delete <SNAPSHOT_FILE>"
+        return
+    fi
+
+    # Check if snapshot file exists
+    if [ -f "$SNAPSHOTS_DIR/$SNAPSHOT_FILE" ]; then
+        rm -f $SNAPSHOTS_DIR/$SNAPSHOT_FILE
+        echo "Deleted snapshot: $SNAPSHOT_FILE"
+    else
+        echo "Snapshot file $SNAPSHOT_FILE does not exist."
     fi
 }
 
@@ -79,7 +118,21 @@ case $COMMAND in
             ls_snapshots $2
         fi
         ;;
+    prune)
+        if [ -z "$2" ] || [ -z "$3" ]; then
+            echo "Usage: $0 prune <VM_NAME> <RETENTION>"
+        else
+            prune $2 $3
+        fi
+        ;;
+    delete)
+        if [ -z "$2" ]; then
+            echo "Usage: $0 delete <SNAPSHOT_FILE>"
+        else
+            delete_snapshot $2
+        fi
+        ;;
     *)
-        echo "Usage: $0 {create|revert|ls}"
+        echo "Usage: $0 {create|revert|ls|prune|delete}"
         ;;
 esac
